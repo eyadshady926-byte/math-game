@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Math Game</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial;
+            background: #222;
+            color: white;
+        }
+        button {
+            padding: 15px;
+            margin: 10px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🎮 Math Game</h1>
+<p id="question"></p>
+<p id="timer"></p>
+
+<button onclick="checkAnswer(0)" id="btn0"></button>
+<button onclick="checkAnswer(1)" id="btn1"></button>
+<button onclick="checkAnswer(2)" id="btn2"></button>
+
+<p id="score"></p>
+
+<script>
+let score = 0;
+let lives = 3;
+let correct;
+let options = [];
+let timeLeft = 5;
+let timer;
+
+function newQuestion() {
+    let num1 = Math.floor(Math.random() * 10) + 1;
+    let num2 = Math.floor(Math.random() * 10) + 1;
+    let op = Math.random() < 0.5 ? "+" : "-";
+
+    correct = op === "+" ? num1 + num2 : num1 - num2;
+
+    options = [correct, correct + 2, correct - 2];
+    options.sort(() => Math.random() - 0.5);
+
+    document.getElementById("question").innerText =
+        num1 + " " + op + " " + num2;
+
+    document.getElementById("btn0").innerText = options[0];
+    document.getElementById("btn1").innerText = options[1];
+    document.getElementById("btn2").innerText = options[2];
+
+    startTimer();
+}
+
+function startTimer() {
+    timeLeft = 5;
+    document.getElementById("timer").innerText = "⏳ " + timeLeft;
+
+    clearInterval(timer);
+
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timer").innerText = "⏳ " + timeLeft;
+
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            alert("⏰ Time's up! Correct: " + correct);
+            lives--;
+            updateScore();
+            nextStep();
+        }
+    }, 1000);
+}
+
+function checkAnswer(index) {
+    clearInterval(timer);
+
+    if (options[index] === correct) {
+        alert("✅ Correct!");
+        score++;
+    } else {
+        alert("❌ Wrong! Correct: " + correct);
+        lives--;
+    }
+
+    updateScore();
+    nextStep();
+}
+
+function updateScore() {
+    document.getElementById("score").innerText =
+        "Score: " + score + " | Lives: " + lives;
+}
+
+function nextStep() {
+    if (lives <= 0) {
+        alert("🏁 Game Over! Final Score: " + score);
+    } else {
+        newQuestion();
+    }
+}
+
+newQuestion();
+updateScore();
+</script>
+
+</body>
+</html>

@@ -1,33 +1,85 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Math Game</title>
-    <style>
-        body {
-            text-align: center;
-            font-family: Arial;
-            background: #222;
-            color: white;
-        }
-        button {
-            padding: 15px;
-            margin: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-    </style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Math Game INSANE</title>
+
+<style>
+body {
+    text-align: center;
+    font-family: Arial;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: white;
+}
+
+h1 {
+    font-size: 40px;
+    animation: glow 2s infinite alternate;
+}
+
+@keyframes glow {
+    from { text-shadow: 0 0 10px #fff; }
+    to { text-shadow: 0 0 20px #00ffff; }
+}
+
+button {
+    padding: 15px;
+    margin: 10px;
+    font-size: 22px;
+    border-radius: 12px;
+    border: none;
+    background: #ff5722;
+    color: white;
+    transition: transform 0.2s, background 0.2s;
+}
+
+button:hover {
+    transform: scale(1.1);
+    background: #ff784e;
+}
+
+#timerBar {
+    width: 100%;
+    height: 10px;
+    background: #555;
+    margin-top: 10px;
+}
+
+#timerFill {
+    height: 10px;
+    width: 100%;
+    background: lime;
+}
+
+#game-box {
+    background: rgba(0,0,0,0.4);
+    padding: 20px;
+    border-radius: 15px;
+    display: inline-block;
+}
+
+</style>
 </head>
+
 <body>
 
-<h1>🎮 Math Game</h1>
-<p id="question"></p>
-<p id="timer"></p>
+<h1>🔥 Math Game INSANE 🔥</h1>
 
-<button onclick="checkAnswer(0)" id="btn0"></button>
-<button onclick="checkAnswer(1)" id="btn1"></button>
-<button onclick="checkAnswer(2)" id="btn2"></button>
+<div id="game-box">
+    <p id="question"></p>
+    <div id="timerBar"><div id="timerFill"></div></div>
 
-<p id="score"></p>
+    <button onclick="checkAnswer(0)" id="btn0"></button>
+    <button onclick="checkAnswer(1)" id="btn1"></button>
+    <button onclick="checkAnswer(2)" id="btn2"></button>
+
+    <p id="score"></p>
+    <p id="highscore"></p>
+    <p id="combo"></p>
+</div>
+
+<audio id="correctSound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+<audio id="wrongSound" src="https://www.soundjay.com/buttons/sounds/button-10.mp3"></audio>
 
 <script>
 let score = 0;
@@ -36,19 +88,27 @@ let correct;
 let options = [];
 let timeLeft = 5;
 let timer;
+let combo = 0;
+
+let highScore = localStorage.getItem("highScore") || 0;
+document.getElementById("highscore").innerText = "🏆 High Score: " + highScore;
 
 function newQuestion() {
-    let num1 = Math.floor(Math.random() * 10) + 1;
-    let num2 = Math.floor(Math.random() * 10) + 1;
-    let op = Math.random() < 0.5 ? "+" : "-";
+    let range = Math.min(50, 10 + score); // difficulty increases
+    let num1 = Math.floor(Math.random() * range) + 1;
+    let num2 = Math.floor(Math.random() * range) + 1;
+    let ops = ["+", "-", "*"];
+    let op = ops[Math.floor(Math.random() * ops.length)];
 
-    correct = op === "+" ? num1 + num2 : num1 - num2;
+    if (op === "+") correct = num1 + num2;
+    else if (op === "-") correct = num1 - num2;
+    else correct = num1 * num2;
 
-    options = [correct, correct + 2, correct - 2];
+    options = [correct, correct + Math.floor(Math.random()*5)+1, correct - Math.floor(Math.random()*5)-1];
     options.sort(() => Math.random() - 0.5);
 
     document.getElementById("question").innerText =
-        num1 + " " + op + " " + num2;
+        "❓ " + num1 + " " + op + " " + num2;
 
     document.getElementById("btn0").innerText = options[0];
     document.getElementById("btn1").innerText = options[1];
@@ -58,33 +118,39 @@ function newQuestion() {
 }
 
 function startTimer() {
-    timeLeft = 5;
-    document.getElementById("timer").innerText = "⏳ " + timeLeft;
+    timeLeft = Math.max(2, 5 - Math.floor(score / 5)); // gets faster
+    let maxTime = timeLeft;
 
     clearInterval(timer);
 
     timer = setInterval(() => {
-        timeLeft--;
-        document.getElementById("timer").innerText = "⏳ " + timeLeft;
+        timeLeft -= 0.1;
+
+        let percent = (timeLeft / maxTime) * 100;
+        document.getElementById("timerFill").style.width = percent + "%";
 
         if (timeLeft <= 0) {
             clearInterval(timer);
-            alert("⏰ Time's up! Correct: " + correct);
+            document.getElementById("wrongSound").play();
+            combo = 0;
             lives--;
+            alert("⏰ Time's up! Correct: " + correct);
             updateScore();
             nextStep();
         }
-    }, 1000);
+    }, 100);
 }
 
 function checkAnswer(index) {
     clearInterval(timer);
 
     if (options[index] === correct) {
-        alert("✅ Correct!");
-        score++;
+        document.getElementById("correctSound").play();
+        combo++;
+        score += 1 + combo; // combo bonus
     } else {
-        alert("❌ Wrong! Correct: " + correct);
+        document.getElementById("wrongSound").play();
+        combo = 0;
         lives--;
     }
 
@@ -94,15 +160,27 @@ function checkAnswer(index) {
 
 function updateScore() {
     document.getElementById("score").innerText =
-        "Score: " + score + " | Lives: " + lives;
+        "⭐ Score: " + score + " | ❤️ Lives: " + lives;
+
+    document.getElementById("combo").innerText =
+        "🔥 Combo: " + combo;
+
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("highScore", highScore);
+        document.getElementById("highscore").innerText =
+            "🏆 High Score: " + highScore;
+    }
 }
 
 function nextStep() {
     if (lives <= 0) {
-        alert("🏁 Game Over! Final Score: " + score);
-    } else {
-        newQuestion();
+        alert("💀 GAME OVER! Final Score: " + score);
+        score = 0;
+        lives = 3;
+        combo = 0;
     }
+    newQuestion();
 }
 
 newQuestion();

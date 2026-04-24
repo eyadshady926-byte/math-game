@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Math Battle PRO</title>
+<title>Math Battle FINAL</title>
 
 <style>
 body {
@@ -46,8 +46,8 @@ button {
   <button onclick="readyUp()">I'm Ready</button>
 
   <p id="countdown"></p>
-
   <p>⏱ Time: <span id="time">--</span></p>
+
   <h2 id="question"></h2>
   <div id="answers"></div>
 
@@ -57,7 +57,7 @@ button {
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDAS6XF3rU6DwVtQMBN-MbUI3TLvSbcs0",
@@ -68,14 +68,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🎮 Setup
+// SETUP
 let roomId = prompt("Room ID:");
 let player = prompt("Player 1 or 2:");
 let gameTime = parseInt(prompt("Game time in seconds (Player 1 sets):")) || 30;
 
 const roomRef = doc(db, "rooms", roomId);
 
-// Create room
+// CREATE ROOM
 async function initRoom() {
   const snap = await getDoc(roomRef);
   if (!snap.exists()) {
@@ -91,7 +91,7 @@ async function initRoom() {
 }
 initRoom();
 
-// READY SYSTEM
+// READY BUTTON
 window.readyUp = async function() {
   document.getElementById("status").innerText = "You are ready ✅";
 
@@ -117,47 +117,50 @@ onSnapshot(roomRef, async (snap) => {
   const data = snap.data();
   if (!data) return;
 
-  // opponent score
   enemyScore = player === "1" ? data.player2 : data.player1;
   document.getElementById("enemyScore").innerText = enemyScore;
 
-  // show ready status
   document.getElementById("status").innerText =
     `Ready: ${data.ready1 ? "P1✅" : "P1❌"} | ${data.ready2 ? "P2✅" : "P2❌"}`;
 
-  // START ONLY ONCE
+  // FIX: delay start time for countdown
   if (data.ready1 && data.ready2 && !data.startTime && !startTriggered) {
     startTriggered = true;
-    await updateDoc(roomRef, { startTime: serverTimestamp() });
+    const delay = 3000; // 3 sec countdown
+    await updateDoc(roomRef, {
+      startTime: Date.now() + delay
+    });
   }
 
-  // start game
   if (data.startTime && !started) {
     started = true;
-    startCountdown(data.startTime.toMillis(), data.duration);
+    startCountdown(data.startTime, data.duration);
   }
 });
 
-// COUNTDOWN
+// COUNTDOWN (SYNCED)
 function startCountdown(startTime, duration) {
-  let countdownEl = document.getElementById("countdown");
-
-  let count = ["3", "2", "1", "GO!"];
-  let i = 0;
+  let el = document.getElementById("countdown");
 
   let interval = setInterval(() => {
-    countdownEl.innerText = count[i];
-    i++;
+    let now = Date.now();
+    let remaining = Math.ceil((startTime - now) / 1000);
 
-    if (i >= count.length) {
+    if (remaining > 0) {
+      el.innerText = remaining;
+    } else {
+      el.innerText = "GO!";
       clearInterval(interval);
-      countdownEl.innerText = "";
-      startGame(startTime, duration);
+
+      setTimeout(() => {
+        el.innerText = "";
+        startGame(startTime, duration);
+      }, 500);
     }
-  }, 800);
+  }, 100);
 }
 
-// GAME LOGIC
+// GAME
 let correct;
 
 function newQ() {
@@ -187,7 +190,7 @@ window.ans = function(x) {
   newQ();
 };
 
-// TIMER
+// TIMER (FIXED)
 function startGame(startTime, durationSec) {
   const duration = durationSec * 1000;
 
@@ -208,7 +211,7 @@ function startGame(startTime, durationSec) {
   newQ();
 }
 
-// END GAME
+// END
 function endGame() {
   let result = "DRAW";
 

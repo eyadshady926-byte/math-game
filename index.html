@@ -3,52 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Math Game INSANE Multiplayer</title>
+<title>Math Battle ONLINE</title>
 
 <style>
 body {
   text-align: center;
   font-family: Arial;
-  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  background: #1e3c72;
   color: white;
-}
-
-h1 {
-  font-size: 40px;
 }
 
 #gameBox {
   background: #111;
   padding: 20px;
   border-radius: 15px;
-  width: 300px;
+  width: 320px;
   margin: auto;
 }
 
 button {
-  padding: 15px;
-  margin: 10px;
-  font-size: 20px;
-  cursor: pointer;
+  padding: 12px;
+  margin: 8px;
+  font-size: 18px;
   border-radius: 10px;
   border: none;
   background: orange;
-  color: white;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🔥 Math Game INSANE 🔥</h1>
+<h1>⚔️ Math Battle ⚔️</h1>
 
 <div id="gameBox">
-  <h2 id="question">Loading...</h2>
+  <p id="status">Waiting...</p>
+  <button onclick="readyUp()">I'm Ready</button>
+
+  <p>⏱ Time: <span id="time">--</span></p>
+  <h2 id="question"></h2>
   <div id="answers"></div>
 
-  <p>⭐ Score: <span id="score">0</span></p>
+  <p>⭐ You: <span id="score">0</span></p>
   <p>⚔️ Opponent: <span id="enemyScore">0</span></p>
-  <p>❤️ Lives: <span id="lives">3</span></p>
 </div>
 
 <script type="module">
@@ -59,102 +56,124 @@ const firebaseConfig = {
   apiKey: "AIzaSyDAS6XF3rU6DwVtQMBN-MbUI3TLvSbcs0",
   authDomain: "math-game-multiplayer.firebaseapp.com",
   projectId: "math-game-multiplayer",
-  storageBucket: "math-game-multiplayer.appspot.com",
-  messagingSenderId: "514610027990",
-  appId: "1:514610027990:web:410c743e03304e2b405877"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Multiplayer setup
-let roomId = prompt("Enter Room ID (same as your friend):");
-let player = prompt("Type 1 or 2");
+// Setup
+let roomId = prompt("Room ID:");
+let player = prompt("Player 1 or 2:");
 
 const roomRef = doc(db, "rooms", roomId);
 
-// Create room if not exist
+// Create room
 async function initRoom() {
   const snap = await getDoc(roomRef);
   if (!snap.exists()) {
     await setDoc(roomRef, {
       player1: 0,
-      player2: 0
+      player2: 0,
+      ready1: false,
+      ready2: false,
+      startTime: 0
     });
   }
 }
 initRoom();
 
-// Update your score
-async function updateOnlineScore(score) {
+// Ready system
+window.readyUp = async function() {
   if (player === "1") {
-    await updateDoc(roomRef, { player1: score });
+    await updateDoc(roomRef, { ready1: true });
   } else {
-    await updateDoc(roomRef, { player2: score });
+    await updateDoc(roomRef, { ready2: true });
   }
-}
+};
 
-// Listen to opponent score
+// Sync listener
+let score = 0;
+let enemyScore = 0;
+let started = false;
+
 onSnapshot(roomRef, (snap) => {
   const data = snap.data();
   if (!data) return;
 
-  if (player === "1") {
-    document.getElementById("enemyScore").innerText = data.player2;
-  } else {
-    document.getElementById("enemyScore").innerText = data.player1;
+  // Opponent score
+  enemyScore = player === "1" ? data.player2 : data.player1;
+  document.getElementById("enemyScore").innerText = enemyScore;
+
+  // Start game when both ready
+  if (data.ready1 && data.ready2 && !data.startTime) {
+    updateDoc(roomRef, { startTime: Date.now() });
+  }
+
+  if (data.startTime && !started) {
+    started = true;
+    startGame(data.startTime);
   }
 });
 
-// Game logic
-let score = 0;
-let lives = 3;
-let correctAnswer;
+// Game
+let correct;
 
-function newQuestion() {
-  let a = Math.floor(Math.random() * 10);
-  let b = Math.floor(Math.random() * 10);
+function newQ() {
+  let a = Math.floor(Math.random()*10);
+  let b = Math.floor(Math.random()*10);
+  correct = a + b;
 
-  correctAnswer = a + b;
-  document.getElementById("question").innerText = `${a} + ${b}`;
+  document.getElementById("question").innerText = a + " + " + b;
 
-  let answers = [
-    correctAnswer,
-    correctAnswer + 1,
-    correctAnswer - 1
-  ];
+  let options = [correct, correct+1, correct-1].sort(()=>Math.random()-0.5);
 
-  answers.sort(() => Math.random() - 0.5);
-
-  let html = "";
-  answers.forEach(ans => {
-    html += `<button onclick="checkAnswer(${ans})">${ans}</button>`;
-  });
-
-  document.getElementById("answers").innerHTML = html;
+  document.getElementById("answers").innerHTML =
+    options.map(x => `<button onclick="ans(${x})">${x}</button>`).join("");
 }
 
-window.checkAnswer = function(answer) {
-  if (answer === correctAnswer) {
+window.ans = function(x) {
+  if (x === correct) {
     score++;
     document.getElementById("score").innerText = score;
-    updateOnlineScore(score);
-  } else {
-    lives--;
-    document.getElementById("lives").innerText = lives;
-  }
 
-  if (lives <= 0) {
-    alert("Game Over!");
-    location.reload();
+    if (player === "1") {
+      updateDoc(roomRef, { player1: score });
+    } else {
+      updateDoc(roomRef, { player2: score });
+    }
   }
-
-  newQuestion();
+  newQ();
 };
 
-// Start
-newQuestion();
+// Start game synced
+function startGame(startTime) {
+  document.getElementById("status").innerText = "GO!";
 
+  let duration = 30; // seconds
+  let timer = setInterval(() => {
+    let elapsed = Math.floor((Date.now() - startTime)/1000);
+    let remaining = duration - elapsed;
+
+    document.getElementById("time").innerText = remaining;
+
+    if (remaining <= 0) {
+      clearInterval(timer);
+      endGame();
+    }
+  }, 200);
+
+  newQ();
+}
+
+// End
+function endGame() {
+  let result = "DRAW";
+
+  if (score > enemyScore) result = "YOU WIN 🏆";
+  else if (score < enemyScore) result = "YOU LOSE ❌";
+
+  alert(`Game Over\nYou: ${score}\nOpponent: ${enemyScore}\n${result}`);
+}
 </script>
 
 </body>

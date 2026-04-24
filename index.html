@@ -50,7 +50,7 @@ button {
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDAS6XF3rU6DwVtQMBN-MbUI3TLvSbcs0",
@@ -76,7 +76,7 @@ async function initRoom() {
       player2: 0,
       ready1: false,
       ready2: false,
-      startTime: 0
+      startTime: null
     });
   }
 }
@@ -96,26 +96,26 @@ let score = 0;
 let enemyScore = 0;
 let started = false;
 
-onSnapshot(roomRef, (snap) => {
+onSnapshot(roomRef, async (snap) => {
   const data = snap.data();
   if (!data) return;
 
-  // Opponent score
+  // opponent score
   enemyScore = player === "1" ? data.player2 : data.player1;
   document.getElementById("enemyScore").innerText = enemyScore;
 
-  // Start game when both ready
+  // start game when both ready
   if (data.ready1 && data.ready2 && !data.startTime) {
-    updateDoc(roomRef, { startTime: Date.now() });
+    await updateDoc(roomRef, { startTime: serverTimestamp() });
   }
 
   if (data.startTime && !started) {
     started = true;
-    startGame(data.startTime);
+    startGame(data.startTime.toMillis());
   }
 });
 
-// Game
+// Game logic
 let correct;
 
 function newQ() {
@@ -145,14 +145,17 @@ window.ans = function(x) {
   newQ();
 };
 
-// Start game synced
+// PERFECT SYNC TIMER
 function startGame(startTime) {
   document.getElementById("status").innerText = "GO!";
 
-  let duration = 30; // seconds
+  const duration = 30000; // 30 sec
+
   let timer = setInterval(() => {
-    let elapsed = Math.floor((Date.now() - startTime)/1000);
-    let remaining = duration - elapsed;
+    let now = Date.now();
+    let remaining = Math.ceil((duration - (now - startTime)) / 1000);
+
+    if (remaining < 0) remaining = 0;
 
     document.getElementById("time").innerText = remaining;
 
@@ -160,12 +163,12 @@ function startGame(startTime) {
       clearInterval(timer);
       endGame();
     }
-  }, 200);
+  }, 100);
 
   newQ();
 }
 
-// End
+// END GAME
 function endGame() {
   let result = "DRAW";
 

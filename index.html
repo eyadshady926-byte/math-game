@@ -1,69 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Math Game INSANE - Fast Math Challenge</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Math Game INSANE Multiplayer</title>
 
-    <!-- SEO -->
-    <meta name="description" content="Play a fast-paced math game online. Answer quickly before time runs out and beat your high score!">
-    <meta name="keywords" content="math game, online game, brain game, quick math, quiz game">
-    <meta name="author" content="Eyad">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  text-align: center;
+  font-family: Arial;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: white;
+}
 
-    <!-- Social -->
-    <meta property="og:title" content="🔥 Math Game INSANE">
-    <meta property="og:description" content="Test your speed and beat your high score!">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://eyadshady926-byte.github.io/math-game">
+h1 {
+  font-size: 40px;
+}
 
-    <style>
-        body {
-            text-align: center;
-            font-family: Arial;
-            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-            color: white;
-        }
+#gameBox {
+  background: #111;
+  padding: 20px;
+  border-radius: 15px;
+  width: 300px;
+  margin: auto;
+}
 
-        h1 {
-            font-size: 40px;
-            animation: glow 2s infinite alternate;
-        }
-
-        @keyframes glow {
-            from { text-shadow: 0 0 10px #fff; }
-            to { text-shadow: 0 0 20px #00ffff; }
-        }
-
-        #gameBox {
-            margin: auto;
-            margin-top: 30px;
-            padding: 20px;
-            width: 300px;
-            background: rgba(0,0,0,0.5);
-            border-radius: 20px;
-        }
-
-        button {
-            padding: 15px;
-            margin: 10px;
-            font-size: 20px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            background: orange;
-            color: white;
-        }
-
-        button:hover {
-            background: red;
-        }
-
-        #timerBar {
-            height: 10px;
-            background: lime;
-            margin: 10px;
-        }
-    </style>
+button {
+  padding: 15px;
+  margin: 10px;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 10px;
+  border: none;
+  background: orange;
+  color: white;
+}
+</style>
 </head>
 
 <body>
@@ -71,108 +43,118 @@
 <h1>🔥 Math Game INSANE 🔥</h1>
 
 <div id="gameBox">
-    <p id="question">Loading...</p>
-    <div id="timerBar"></div>
+  <h2 id="question">Loading...</h2>
+  <div id="answers"></div>
 
-    <button onclick="checkAnswer(0)" id="b0"></button>
-    <button onclick="checkAnswer(1)" id="b1"></button>
-    <button onclick="checkAnswer(2)" id="b2"></button>
-
-    <p>⭐ Score: <span id="score">0</span></p>
-    <p>❤️ Lives: <span id="lives">3</span></p>
-    <p>🏆 High Score: <span id="high">0</span></p>
-    <p>🔥 Combo: <span id="combo">0</span></p>
-
-    <button onclick="restart()">Restart</button>
+  <p>⭐ Score: <span id="score">0</span></p>
+  <p>⚔️ Opponent: <span id="enemyScore">0</span></p>
+  <p>❤️ Lives: <span id="lives">3</span></p>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDAS6XF3rU6DwVtQMBN-MbUI3TLvSbcs0",
+  authDomain: "math-game-multiplayer.firebaseapp.com",
+  projectId: "math-game-multiplayer",
+  storageBucket: "math-game-multiplayer.appspot.com",
+  messagingSenderId: "514610027990",
+  appId: "1:514610027990:web:410c743e03304e2b405877"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Multiplayer setup
+let roomId = prompt("Enter Room ID (same as your friend):");
+let player = prompt("Type 1 or 2");
+
+const roomRef = doc(db, "rooms", roomId);
+
+// Create room if not exist
+async function initRoom() {
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) {
+    await setDoc(roomRef, {
+      player1: 0,
+      player2: 0
+    });
+  }
+}
+initRoom();
+
+// Update your score
+async function updateOnlineScore(score) {
+  if (player === "1") {
+    await updateDoc(roomRef, { player1: score });
+  } else {
+    await updateDoc(roomRef, { player2: score });
+  }
+}
+
+// Listen to opponent score
+onSnapshot(roomRef, (snap) => {
+  const data = snap.data();
+  if (!data) return;
+
+  if (player === "1") {
+    document.getElementById("enemyScore").innerText = data.player2;
+  } else {
+    document.getElementById("enemyScore").innerText = data.player1;
+  }
+});
+
+// Game logic
 let score = 0;
 let lives = 3;
-let combo = 0;
-let correct = 0;
-let timeLeft = 100;
-let timer;
-
-let highScore = localStorage.getItem("high") || 0;
-document.getElementById("high").innerText = highScore;
+let correctAnswer;
 
 function newQuestion() {
-    clearInterval(timer);
-    timeLeft = 100;
+  let a = Math.floor(Math.random() * 10);
+  let b = Math.floor(Math.random() * 10);
 
-    let a = Math.floor(Math.random() * 20);
-    let b = Math.floor(Math.random() * 20);
-    correct = a + b;
+  correctAnswer = a + b;
+  document.getElementById("question").innerText = `${a} + ${b}`;
 
-    document.getElementById("question").innerText = a + " + " + b;
+  let answers = [
+    correctAnswer,
+    correctAnswer + 1,
+    correctAnswer - 1
+  ];
 
-    let answers = [correct, correct + 2, correct - 1];
-    answers.sort(() => Math.random() - 0.5);
+  answers.sort(() => Math.random() - 0.5);
 
-    for (let i = 0; i < 3; i++) {
-        document.getElementById("b" + i).innerText = answers[i];
-        document.getElementById("b" + i).value = answers[i];
-    }
+  let html = "";
+  answers.forEach(ans => {
+    html += `<button onclick="checkAnswer(${ans})">${ans}</button>`;
+  });
 
-    timer = setInterval(() => {
-        timeLeft--;
-        document.getElementById("timerBar").style.width = timeLeft + "%";
-
-        if (timeLeft <= 0) {
-            loseLife();
-        }
-    }, 50);
+  document.getElementById("answers").innerHTML = html;
 }
 
-function checkAnswer(i) {
-    let val = document.getElementById("b" + i).value;
-
-    if (val == correct) {
-        score++;
-        combo++;
-    } else {
-        loseLife();
-        return;
-    }
-
-    update();
-    newQuestion();
-}
-
-function loseLife() {
-    lives--;
-    combo = 0;
-
-    if (lives <= 0) {
-        alert("Game Over!");
-        if (score > highScore) {
-            localStorage.setItem("high", score);
-        }
-        restart();
-        return;
-    }
-
-    update();
-    newQuestion();
-}
-
-function update() {
+window.checkAnswer = function(answer) {
+  if (answer === correctAnswer) {
+    score++;
     document.getElementById("score").innerText = score;
+    updateOnlineScore(score);
+  } else {
+    lives--;
     document.getElementById("lives").innerText = lives;
-    document.getElementById("combo").innerText = combo;
-    document.getElementById("high").innerText = localStorage.getItem("high");
-}
+  }
 
-function restart() {
-    score = 0;
-    lives = 3;
-    combo = 0;
-    update();
-    newQuestion();
-}
+  if (lives <= 0) {
+    alert("Game Over!");
+    location.reload();
+  }
 
+  newQuestion();
+};
+
+// Start
 newQuestion();
+
 </script>
 
 </body>

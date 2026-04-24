@@ -61,9 +61,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Setup
+// 🎮 Setup
 let roomId = prompt("Room ID:");
 let player = prompt("Player 1 or 2:");
+let gameTime = parseInt(prompt("Game time in seconds (e.g. 30):")) || 30;
 
 const roomRef = doc(db, "rooms", roomId);
 
@@ -76,7 +77,8 @@ async function initRoom() {
       player2: 0,
       ready1: false,
       ready2: false,
-      startTime: null
+      startTime: null,
+      duration: gameTime
     });
   }
 }
@@ -85,13 +87,13 @@ initRoom();
 // Ready system
 window.readyUp = async function() {
   if (player === "1") {
-    await updateDoc(roomRef, { ready1: true });
+    await updateDoc(roomRef, { ready1: true, duration: gameTime });
   } else {
     await updateDoc(roomRef, { ready2: true });
   }
 };
 
-// Sync listener
+// Sync
 let score = 0;
 let enemyScore = 0;
 let started = false;
@@ -104,14 +106,14 @@ onSnapshot(roomRef, async (snap) => {
   enemyScore = player === "1" ? data.player2 : data.player1;
   document.getElementById("enemyScore").innerText = enemyScore;
 
-  // start game when both ready
+  // start when both ready
   if (data.ready1 && data.ready2 && !data.startTime) {
     await updateDoc(roomRef, { startTime: serverTimestamp() });
   }
 
   if (data.startTime && !started) {
     started = true;
-    startGame(data.startTime.toMillis());
+    startGame(data.startTime.toMillis(), data.duration);
   }
 });
 
@@ -145,11 +147,11 @@ window.ans = function(x) {
   newQ();
 };
 
-// PERFECT SYNC TIMER
-function startGame(startTime) {
+// ⏱ SYNCED TIMER (adjustable)
+function startGame(startTime, durationSec) {
   document.getElementById("status").innerText = "GO!";
 
-  const duration = 30000; // 30 sec
+  const duration = durationSec * 1000;
 
   let timer = setInterval(() => {
     let now = Date.now();
@@ -168,7 +170,7 @@ function startGame(startTime) {
   newQ();
 }
 
-// END GAME
+// 🏁 End
 function endGame() {
   let result = "DRAW";
 

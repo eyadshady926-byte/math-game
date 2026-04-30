@@ -28,6 +28,7 @@ button {
   background: orange;
   border: none;
   color: white;
+  cursor: pointer;
 }
 
 #shop, #resultScreen {
@@ -51,7 +52,7 @@ button {
 
 <div id="gameBox">
   <p id="status">Waiting...</p>
-  <button onclick="readyUp()">I'm Ready</button>
+  <button id="readyBtn">I'm Ready</button>
 
   <p id="countdown"></p>
   <p>⏱ <span id="time">--</span></p>
@@ -64,16 +65,16 @@ button {
   <p>⚔️ Opponent: <span id="enemyScore">0</span></p>
 
   <p>💎 Coins: <span id="coins">0</span></p>
-  <button onclick="openShop()">🛒 Shop</button>
+  <button id="shopBtn">🛒 Shop</button>
 
   <div id="leaderboard"></div>
 </div>
 
 <div id="shop">
   <h2>Shop</h2>
-  <button onclick="buyHint()">💡 Hint (5)</button>
-  <button onclick="buyTime()">⏱ +5s (10)</button>
-  <button onclick="closeShop()">Close</button>
+  <button id="hintBtn">💡 Hint (5)</button>
+  <button id="timeBtn">⏱ +5s (10)</button>
+  <button id="closeShopBtn">Close</button>
 </div>
 
 <div id="resultScreen"></div>
@@ -91,13 +92,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 👤 USER
+// USER
 let name = prompt("Enter your username:");
 document.getElementById("playerName").innerText = name;
 
 const playerRef = doc(db, "players", name);
 
-// 💎 COINS
 let coins = 0;
 
 async function loadPlayer() {
@@ -117,7 +117,7 @@ function updateCoins() {
 
 loadPlayer();
 
-// 🎮 MULTIPLAYER
+// MULTIPLAYER
 let roomId = prompt("Room ID:");
 let player = prompt("Player 1 or 2:");
 let gameTime = parseInt(prompt("Game time:")) || 30;
@@ -139,13 +139,39 @@ async function initRoom() {
 }
 initRoom();
 
-// READY
-window.readyUp = async function() {
+// READY BUTTON
+document.getElementById("readyBtn").onclick = async () => {
   if (player === "1") {
     await updateDoc(roomRef, { ready1: true, duration: gameTime });
   } else {
     await updateDoc(roomRef, { ready2: true });
   }
+};
+
+// SHOP BUTTONS
+document.getElementById("shopBtn").onclick = () => {
+  document.getElementById("shop").style.display = "flex";
+};
+
+document.getElementById("closeShopBtn").onclick = () => {
+  document.getElementById("shop").style.display = "none";
+};
+
+document.getElementById("hintBtn").onclick = () => {
+  if (coins < 5) return alert("Not enough coins");
+  coins -= 5; updateCoins();
+
+  document.querySelectorAll("#answers button").forEach(btn => {
+    if (parseInt(btn.innerText) !== correct) btn.style.display = "none";
+  });
+};
+
+let startTimeGlobal = 0;
+
+document.getElementById("timeBtn").onclick = () => {
+  if (coins < 10) return alert("Not enough coins");
+  coins -= 10; updateCoins();
+  startTimeGlobal += 5000;
 };
 
 // SYNC
@@ -202,29 +228,35 @@ function newQ() {
   let options = [correct, correct+1, correct-1].sort(()=>Math.random()-0.5);
 
   document.getElementById("question").innerText = a + " + " + b;
-  document.getElementById("answers").innerHTML =
-    options.map(x => `<button onclick="ans(${x})">${x}</button>`).join("");
+
+  let container = document.getElementById("answers");
+  container.innerHTML = "";
+
+  options.forEach(x => {
+    let btn = document.createElement("button");
+    btn.innerText = x;
+
+    btn.onclick = () => {
+      if (x === correct) {
+        score++;
+        coins += 2;
+        updateCoins();
+        savePlayer();
+      }
+
+      document.getElementById("score").innerText = score;
+
+      if (player === "1") updateDoc(roomRef, { player1: score });
+      else updateDoc(roomRef, { player2: score });
+
+      newQ();
+    };
+
+    container.appendChild(btn);
+  });
 }
 
-window.ans = function(x) {
-  if (x === correct) {
-    score++;
-    coins += 2;
-    savePlayer();
-    updateCoins();
-  }
-
-  document.getElementById("score").innerText = score;
-
-  if (player === "1") updateDoc(roomRef, { player1: score });
-  else updateDoc(roomRef, { player2: score });
-
-  newQ();
-};
-
 // TIMER
-let startTimeGlobal = 0;
-
 function startGame(startTime, durationSec) {
   startTimeGlobal = startTime;
   const duration = durationSec * 1000;
@@ -244,34 +276,12 @@ function startGame(startTime, durationSec) {
   newQ();
 }
 
-// 🛒 SHOP
-window.openShop = () => document.getElementById("shop").style.display = "flex";
-window.closeShop = () => document.getElementById("shop").style.display = "none";
-
-window.buyHint = function() {
-  if (coins < 5) return alert("Not enough coins");
-  coins -= 5; updateCoins();
-
-  let btns = document.querySelectorAll("#answers button");
-  btns.forEach(btn => {
-    if (parseInt(btn.innerText) !== correct) btn.style.display = "none";
-  });
-};
-
-window.buyTime = function() {
-  if (coins < 10) return alert("Not enough coins");
-  coins -= 10; updateCoins();
-  startTimeGlobal += 5000;
-};
-
-// 🏆 END GAME
+// END GAME
 async function endGame() {
   await addDoc(collection(db, "leaderboard"), {
     name: name,
     score: score
   });
-
-  loadLeaderboard();
 
   let result = score > enemyScore ? "YOU WIN 🏆" :
                score < enemyScore ? "YOU LOSE ❌" : "DRAW";
@@ -285,24 +295,6 @@ async function endGame() {
     <button onclick="location.reload()">Play Again</button>
   `;
 }
-
-// LEADERBOARD
-async function loadLeaderboard() {
-  const snap = await getDocs(collection(db, "leaderboard"));
-
-  let list = [];
-  snap.forEach(doc => list.push(doc.data()));
-
-  list.sort((a,b)=> b.score - a.score);
-
-  let html = "<h3>Top Players</h3>";
-  list.slice(0,5).forEach(p => {
-    html += `<p>${p.name}: ${p.score}</p>`;
-  });
-
-  document.getElementById("leaderboard").innerHTML = html;
-}
-
 </script>
 
 </body>

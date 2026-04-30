@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Math Battle INSANE</title>
+<title>Math Battle PRO MAX</title>
 
 <style>
 body {
@@ -19,44 +19,29 @@ body {
   border-radius: 20px;
   width: 320px;
   margin: auto;
-  box-shadow: 0 0 20px cyan;
 }
 
 button {
   padding: 12px;
   margin: 6px;
-  font-size: 18px;
   border-radius: 10px;
-  border: none;
   background: orange;
+  border: none;
   color: white;
-  transition: 0.2s;
 }
 
-button:hover {
-  transform: scale(1.1);
-}
-
-.correct { background: lime !important; }
-.wrong { background: red !important; }
-
-#countdown {
-  font-size: 50px;
-  color: yellow;
-}
-
-#resultScreen {
+#shop, #resultScreen {
   position: fixed;
   top:0; left:0;
   width:100%; height:100%;
   background:black;
-  color:white;
   display:none;
   justify-content:center;
   align-items:center;
   flex-direction:column;
-  font-size:30px;
 }
+
+#countdown { font-size: 40px; color: yellow; }
 </style>
 </head>
 
@@ -74,41 +59,71 @@ button:hover {
   <h2 id="question"></h2>
   <div id="answers"></div>
 
-  <p>👤 You: <span id="playerName"></span></p>
+  <p>👤 <span id="playerName"></span></p>
   <p>⭐ Score: <span id="score">0</span></p>
   <p>⚔️ Opponent: <span id="enemyScore">0</span></p>
+
+  <p>💎 Coins: <span id="coins">0</span></p>
+  <button onclick="openShop()">🛒 Shop</button>
+
+  <div id="leaderboard"></div>
+</div>
+
+<div id="shop">
+  <h2>Shop</h2>
+  <button onclick="buyHint()">💡 Hint (5)</button>
+  <button onclick="buyTime()">⏱ +5s (10)</button>
+  <button onclick="closeShop()">Close</button>
 </div>
 
 <div id="resultScreen"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, addDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDAS6XF3rU6DwVtQMBN-MbUI3TLvSbcs0",
   authDomain: "math-game-multiplayer.firebaseapp.com",
-  projectId: "math-game-multiplayer",
+  projectId: "math-game-multiplayer"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🔊 Sounds
-const correctSound = new Audio("https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3");
-const wrongSound = new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-tone-2871.mp3");
+// 👤 USER
+let name = prompt("Enter your username:");
+document.getElementById("playerName").innerText = name;
 
-// Setup
+const playerRef = doc(db, "players", name);
+
+// 💎 COINS
+let coins = 0;
+
+async function loadPlayer() {
+  const snap = await getDoc(playerRef);
+  if (snap.exists()) coins = snap.data().coins || 0;
+  else await setDoc(playerRef, { coins: 0 });
+  updateCoins();
+}
+
+async function savePlayer() {
+  await updateDoc(playerRef, { coins: coins });
+}
+
+function updateCoins() {
+  document.getElementById("coins").innerText = coins;
+}
+
+loadPlayer();
+
+// 🎮 MULTIPLAYER
 let roomId = prompt("Room ID:");
 let player = prompt("Player 1 or 2:");
-let name = prompt("Your name:");
-let gameTime = parseInt(prompt("Game time (sec):")) || 30;
-
-document.getElementById("playerName").innerText = name;
+let gameTime = parseInt(prompt("Game time:")) || 30;
 
 const roomRef = doc(db, "rooms", roomId);
 
-// Create room
 async function initRoom() {
   const snap = await getDoc(roomRef);
   if (!snap.exists()) {
@@ -124,7 +139,7 @@ async function initRoom() {
 }
 initRoom();
 
-// Ready
+// READY
 window.readyUp = async function() {
   if (player === "1") {
     await updateDoc(roomRef, { ready1: true, duration: gameTime });
@@ -133,6 +148,7 @@ window.readyUp = async function() {
   }
 };
 
+// SYNC
 let score = 0;
 let enemyScore = 0;
 let started = false;
@@ -147,9 +163,7 @@ onSnapshot(roomRef, async (snap) => {
 
   if (data.ready1 && data.ready2 && !data.startTime && !startTriggered) {
     startTriggered = true;
-    await updateDoc(roomRef, {
-      startTime: Date.now() + 3000
-    });
+    await updateDoc(roomRef, { startTime: Date.now() + 3000 });
   }
 
   if (data.startTime && !started) {
@@ -158,16 +172,15 @@ onSnapshot(roomRef, async (snap) => {
   }
 });
 
-// Countdown
+// COUNTDOWN
 function startCountdown(startTime, duration) {
   let el = document.getElementById("countdown");
 
   let interval = setInterval(() => {
     let remaining = Math.ceil((startTime - Date.now()) / 1000);
 
-    if (remaining > 0) {
-      el.innerText = remaining;
-    } else {
+    if (remaining > 0) el.innerText = remaining;
+    else {
       el.innerText = "GO!";
       clearInterval(interval);
       setTimeout(() => {
@@ -178,7 +191,7 @@ function startCountdown(startTime, duration) {
   }, 100);
 }
 
-// Game
+// GAME
 let correct;
 
 function newQ() {
@@ -186,43 +199,40 @@ function newQ() {
   let b = Math.floor(Math.random()*10);
   correct = a + b;
 
-  document.getElementById("question").innerText = a + " + " + b;
-
   let options = [correct, correct+1, correct-1].sort(()=>Math.random()-0.5);
 
+  document.getElementById("question").innerText = a + " + " + b;
   document.getElementById("answers").innerHTML =
-    options.map(x => `<button onclick="ans(this, ${x})">${x}</button>`).join("");
+    options.map(x => `<button onclick="ans(${x})">${x}</button>`).join("");
 }
 
-window.ans = function(btn, x) {
+window.ans = function(x) {
   if (x === correct) {
     score++;
-    btn.classList.add("correct");
-    correctSound.play();
-  } else {
-    btn.classList.add("wrong");
-    wrongSound.play();
+    coins += 2;
+    savePlayer();
+    updateCoins();
   }
 
   document.getElementById("score").innerText = score;
 
-  if (player === "1") {
-    updateDoc(roomRef, { player1: score });
-  } else {
-    updateDoc(roomRef, { player2: score });
-  }
+  if (player === "1") updateDoc(roomRef, { player1: score });
+  else updateDoc(roomRef, { player2: score });
 
-  setTimeout(newQ, 300);
+  newQ();
 };
 
-// Timer
+// TIMER
+let startTimeGlobal = 0;
+
 function startGame(startTime, durationSec) {
+  startTimeGlobal = startTime;
   const duration = durationSec * 1000;
 
   let timer = setInterval(() => {
-    let remaining = Math.ceil((duration - (Date.now() - startTime)) / 1000);
-
+    let remaining = Math.ceil((duration - (Date.now() - startTimeGlobal)) / 1000);
     if (remaining < 0) remaining = 0;
+
     document.getElementById("time").innerText = remaining;
 
     if (remaining <= 0) {
@@ -234,12 +244,37 @@ function startGame(startTime, durationSec) {
   newQ();
 }
 
-// End screen
-function endGame() {
-  let result = "DRAW";
+// 🛒 SHOP
+window.openShop = () => document.getElementById("shop").style.display = "flex";
+window.closeShop = () => document.getElementById("shop").style.display = "none";
 
-  if (score > enemyScore) result = "YOU WIN 🏆";
-  else if (score < enemyScore) result = "YOU LOSE ❌";
+window.buyHint = function() {
+  if (coins < 5) return alert("Not enough coins");
+  coins -= 5; updateCoins();
+
+  let btns = document.querySelectorAll("#answers button");
+  btns.forEach(btn => {
+    if (parseInt(btn.innerText) !== correct) btn.style.display = "none";
+  });
+};
+
+window.buyTime = function() {
+  if (coins < 10) return alert("Not enough coins");
+  coins -= 10; updateCoins();
+  startTimeGlobal += 5000;
+};
+
+// 🏆 END GAME
+async function endGame() {
+  await addDoc(collection(db, "leaderboard"), {
+    name: name,
+    score: score
+  });
+
+  loadLeaderboard();
+
+  let result = score > enemyScore ? "YOU WIN 🏆" :
+               score < enemyScore ? "YOU LOSE ❌" : "DRAW";
 
   let screen = document.getElementById("resultScreen");
   screen.style.display = "flex";
@@ -250,6 +285,24 @@ function endGame() {
     <button onclick="location.reload()">Play Again</button>
   `;
 }
+
+// LEADERBOARD
+async function loadLeaderboard() {
+  const snap = await getDocs(collection(db, "leaderboard"));
+
+  let list = [];
+  snap.forEach(doc => list.push(doc.data()));
+
+  list.sort((a,b)=> b.score - a.score);
+
+  let html = "<h3>Top Players</h3>";
+  list.slice(0,5).forEach(p => {
+    html += `<p>${p.name}: ${p.score}</p>`;
+  });
+
+  document.getElementById("leaderboard").innerHTML = html;
+}
+
 </script>
 
 </body>

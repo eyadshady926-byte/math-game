@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Math Battle PRO MAX</title>
+<title>Math Battle FINAL FIXED</title>
 
 <style>
 body {
@@ -117,16 +117,16 @@ function updateCoins() {
 
 loadPlayer();
 
-// MULTIPLAYER
+// MULTIPLAYER SETUP
 let roomId = prompt("Room ID:");
 let player = prompt("Player 1 or 2:");
-let gameTime = parseInt(prompt("Game time:")) || 30;
+let gameTime = parseInt(prompt("Game time (seconds):")) || 30;
 
 const roomRef = doc(db, "rooms", roomId);
 
+// 🔥 RESET ROOM (FIX)
 async function initRoom() {
-  const snap = await getDoc(roomRef);
-  if (!snap.exists()) {
+  if (player === "1") {
     await setDoc(roomRef, {
       player1: 0,
       player2: 0,
@@ -142,20 +142,25 @@ initRoom();
 // READY BUTTON
 document.getElementById("readyBtn").onclick = async () => {
   if (player === "1") {
-    await updateDoc(roomRef, { ready1: true, duration: gameTime });
+    await updateDoc(roomRef, {
+      ready1: true,
+      duration: gameTime,
+      startTime: null
+    });
   } else {
     await updateDoc(roomRef, { ready2: true });
   }
 };
 
-// SHOP BUTTONS
+// SHOP
 document.getElementById("shopBtn").onclick = () => {
   document.getElementById("shop").style.display = "flex";
 };
-
 document.getElementById("closeShopBtn").onclick = () => {
   document.getElementById("shop").style.display = "none";
 };
+
+let startTimeGlobal = 0;
 
 document.getElementById("hintBtn").onclick = () => {
   if (coins < 5) return alert("Not enough coins");
@@ -165,8 +170,6 @@ document.getElementById("hintBtn").onclick = () => {
     if (parseInt(btn.innerText) !== correct) btn.style.display = "none";
   });
 };
-
-let startTimeGlobal = 0;
 
 document.getElementById("timeBtn").onclick = () => {
   if (coins < 10) return alert("Not enough coins");
@@ -187,9 +190,14 @@ onSnapshot(roomRef, async (snap) => {
   enemyScore = player === "1" ? data.player2 : data.player1;
   document.getElementById("enemyScore").innerText = enemyScore;
 
+  // 🔥 FIX START
   if (data.ready1 && data.ready2 && !data.startTime && !startTriggered) {
     startTriggered = true;
-    await updateDoc(roomRef, { startTime: Date.now() + 3000 });
+
+    await updateDoc(roomRef, {
+      startTime: Date.now() + 3000,
+      duration: data.duration || gameTime
+    });
   }
 
   if (data.startTime && !started) {
@@ -259,7 +267,8 @@ function newQ() {
 // TIMER
 function startGame(startTime, durationSec) {
   startTimeGlobal = startTime;
-  const duration = durationSec * 1000;
+
+  const duration = (durationSec || gameTime) * 1000;
 
   let timer = setInterval(() => {
     let remaining = Math.ceil((duration - (Date.now() - startTimeGlobal)) / 1000);
@@ -276,7 +285,7 @@ function startGame(startTime, durationSec) {
   newQ();
 }
 
-// END GAME
+// END
 async function endGame() {
   await addDoc(collection(db, "leaderboard"), {
     name: name,
